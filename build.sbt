@@ -1,0 +1,148 @@
+import sbt.Keys.scalaVersion
+import sbtcrossproject.CrossPlugin.autoImport.{CrossType, crossProject}
+
+import scala.sys.process._
+
+ThisBuild /  organization := "net.novogarchinsk"
+ThisBuild / version      := "0.3.0-SNAPSHOT"
+ThisBuild / scalaVersion := "2.12.8"
+
+
+
+val circeVersion = "0.11.1"
+val scalaTestVersion = "3.0.5"
+
+lazy val dsl =  crossProject(JSPlatform, JVMPlatform)
+  .crossType(CrossType.Full).in(file("""./iotte""")).
+  settings(
+    name := "IoTTE",
+
+    scalacOptions ++= Seq(
+      "-feature",
+      "-Ypartial-unification" ,
+    ),
+
+    resolvers ++= Seq(
+      "Typesafe" at "http://repo.typesafe.com/typesafe/releases/",
+      "Java.net Maven2 Repository" at "http://download.java.net/maven/2/",
+      "Sonatype OSS Snapshots" at "https://oss.sonatype.org/content/repositories/snapshots",
+      "Sonatype OSS Public" at "https://oss.sonatype.org/content/repositories/public",
+      "JFrog" at  "http://repo.jfrog.org/artifactory/libs-releases/",
+      "JBoss" at "http://repository.jboss.org/nexus/content/groups/public-jboss/",
+      "MVNSearch" at "http://www.mvnsearch.org/maven2/"
+    ),
+
+    publishMavenStyle := true,
+
+    libraryDependencies += "io.monix" %%% "monix" % "3.0.0-RC2",
+    libraryDependencies += "org.scalactic" %%% "scalactic" % "3.0.7",
+    libraryDependencies += "org.scalatest" %%% "scalatest" % "3.0.7" % "test",
+    libraryDependencies +="com.chuusai" %%% "shapeless" % "2.3.3",
+
+  ).
+  jvmSettings(
+
+  ).
+  jsSettings(
+    resolvers += Resolver.sonatypeRepo("releases"),
+    libraryDependencies += "io.scalajs" %%% "nodejs" % "0.4.2",
+    libraryDependencies += "org.querki" %%% "querki-jsext" % "0.8",
+    libraryDependencies += "com.zeiss" %%% "johnny5scala-js" % "0.0.2-SNAPSHOT",
+    libraryDependencies += "fr.hmil" %%% "roshttp" % "2.2.3",
+    libraryDependencies += "net.novogarchinsk" %%% "pyshell-scalajs" % "0.1-SNAPSHOT",
+    scalaJSLinkerConfig ~= { _.withModuleKind(ModuleKind.CommonJSModule) },
+    skip in packageJSDependencies := false,
+    scalaJSUseMainModuleInitializer := true,
+    scalacOptions ++= Seq(
+      "-P:scalajs:sjsDefinedByDefault"
+    )
+  )
+
+
+lazy val frontend  = (project in file( "./frontend")).settings(
+  name := "frontend",
+
+  npmDependencies in Compile += "react-native" -> "0.58.3",
+  npmDependencies in Compile += "react-native-webview" -> "5.6.0",
+
+  
+
+  libraryDependencies += "io.tmos" %% "arm4s" % "1.1.0",
+  libraryDependencies += "me.shadaj" %%% "slinky-native" % "0.6.0",
+  libraryDependencies += "me.shadaj" %%% "slinky-hot" % "0.6.0",
+  libraryDependencies += "io.monix" %%% "monix" % "3.0.0-RC2",
+  libraryDependencies += "com.github.karasiq" %%% "scalajs-highcharts" % "1.2.1",
+  scalacOptions += "-P:scalajs:sjsDefinedByDefault",
+
+  addCompilerPlugin("org.scalamacros" % "paradise" % "2.1.1" cross CrossVersion.full),
+
+  scalaJSModuleKind := ModuleKind.CommonJSModule,
+
+).enablePlugins(ScalaJSPlugin).enablePlugins(ScalaJSBundlerPlugin, ScalaJSWeb)
+
+lazy val functions  = (project in file("./functions")).settings(
+
+  name := "functions",
+
+  scalaJSLinkerConfig ~= { _.withModuleKind(ModuleKind.CommonJSModule) },
+
+  scalacOptions += "-P:scalajs:sjsDefinedByDefault",
+
+ 
+  libraryDependencies += "io.scalajs.npm" %%% "express" % "4.14.1",
+  pipelineStages in Assets := Seq(scalaJSPipeline),
+
+
+  libraryDependencies ++= Seq(
+    "org.scalactic" %%% "scalactic" % scalaTestVersion,
+    "org.scalatest" %%% "scalatest" % scalaTestVersion % "test"),
+
+  libraryDependencies ++= Seq(
+    "eu.unicredit" %%% "paths-scala-js" % "0.4.5",
+    "com.github.japgolly.scalajs-react" %%% "core" % "1.4.1",
+    "com.github.japgolly.scalajs-react" %%% "extra" % "1.4.1",
+    "com.github.japgolly.scalajs-react" %%% "ext-cats" % "1.4.1",
+  ),
+
+  libraryDependencies ++= Seq(
+    "io.circe" %%% "circe-core",
+    "io.circe" %%% "circe-generic",
+    "io.circe" %%% "circe-parser",
+    "io.circe" %%% "circe-shapes"
+
+  ).map(_ % circeVersion),
+
+  InputKey[Unit]("gcDeploy") := {
+    val args :Seq[String] = sbt.complete.DefaultParsers.spaceDelimited("gcDeploy <project-id> <functionname>").parsed
+
+    val projectId = args.head
+    val functionName = args(1)
+    val trigger = "--trigger-http"
+
+    val region = "europe-west1"
+
+    val gcTarget = target.value / "gcloud"
+    val function = gcTarget / "function.js"
+    sbt.IO.copyFile((fullOptJS in Compile).value.data, function)
+    sbt.IO.copyDirectory((resourceDirectory in Compile).value, gcTarget)
+
+    s"gcloud functions deploy $functionName --source ${gcTarget.getAbsolutePath} --stage-bucket sendsef $trigger --runtime nodejs8 --project $projectId --region $region"!
+  },
+
+  InputKey[Unit]("localFDeploy") := {
+    val args :Seq[String] = sbt.complete.DefaultParsers.spaceDelimited("localFDeploy <project-id> <functionname>").parsed
+
+    val functionName = args(1)
+    val trigger = "--trigger-http"
+
+
+    val gcTarget = target.value / "gcloud"
+    val function = gcTarget / "function.js"
+    sbt.IO.copyFile((fullOptJS in Compile).value.data, function)
+    sbt.IO.copyDirectory((resourceDirectory in Compile).value, gcTarget)
+    println(s"functions deploy $functionName --local-path=${function.getAbsolutePath} $trigger ")
+    s"functions deploy $functionName --local-path=${function.getAbsolutePath} $trigger "!
+  }
+
+
+).enablePlugins(ScalaJSPlugin).enablePlugins(WebScalaJSBundlerPlugin)
