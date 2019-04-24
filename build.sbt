@@ -8,6 +8,7 @@ ThisBuild / version      := "0.3.0-SNAPSHOT"
 ThisBuild / scalaVersion := "2.12.8"
 
 
+ideaPort in Global := 65337
 
 val circeVersion = "0.11.1"
 val scalaTestVersion = "3.0.5"
@@ -65,7 +66,8 @@ lazy val frontend  = (project in file( "./frontend")).settings(
   npmDependencies in Compile += "react-native" -> "0.58.3",
   npmDependencies in Compile += "react-native-webview" -> "5.6.0",
 
-  
+
+
 
   libraryDependencies += "io.tmos" %% "arm4s" % "1.1.0",
   libraryDependencies += "me.shadaj" %%% "slinky-native" % "0.6.0",
@@ -88,9 +90,12 @@ lazy val functions  = (project in file("./functions")).settings(
 
   scalacOptions += "-P:scalajs:sjsDefinedByDefault",
 
- 
+  webpackConfigFile := Some( (resourceDirectory in Compile).value  /  "webpack.config.js"),
+
+  skip in packageJSDependencies := false,
   libraryDependencies += "io.scalajs.npm" %%% "express" % "4.14.1",
   pipelineStages in Assets := Seq(scalaJSPipeline),
+
 
 
   libraryDependencies ++= Seq(
@@ -99,9 +104,8 @@ lazy val functions  = (project in file("./functions")).settings(
 
   libraryDependencies ++= Seq(
     "eu.unicredit" %%% "paths-scala-js" % "0.4.5",
-    "com.github.japgolly.scalajs-react" %%% "core" % "1.4.1",
-    "com.github.japgolly.scalajs-react" %%% "extra" % "1.4.1",
-    "com.github.japgolly.scalajs-react" %%% "ext-cats" % "1.4.1",
+    "me.shadaj" %%% "slinky-core" % "0.6.0",
+    "me.shadaj" %%% "slinky-web" % "0.6.0",
   ),
 
   libraryDependencies ++= Seq(
@@ -123,26 +127,13 @@ lazy val functions  = (project in file("./functions")).settings(
 
     val gcTarget = target.value / "gcloud"
     val function = gcTarget / "function.js"
-    sbt.IO.copyFile((fullOptJS in Compile).value.data, function)
+    sbt.IO.copyFile((fastOptJS in Compile).value.data, function)
     sbt.IO.copyDirectory((resourceDirectory in Compile).value, gcTarget)
 
     s"gcloud functions deploy $functionName --source ${gcTarget.getAbsolutePath} --stage-bucket sendsef $trigger --runtime nodejs8 --project $projectId --region $region"!
   },
 
-  InputKey[Unit]("localFDeploy") := {
-    val args :Seq[String] = sbt.complete.DefaultParsers.spaceDelimited("localFDeploy <project-id> <functionname>").parsed
-
-    val functionName = args(1)
-    val trigger = "--trigger-http"
 
 
-    val gcTarget = target.value / "gcloud"
-    val function = gcTarget / "function.js"
-    sbt.IO.copyFile((fullOptJS in Compile).value.data, function)
-    sbt.IO.copyDirectory((resourceDirectory in Compile).value, gcTarget)
-    println(s"functions deploy $functionName --local-path=${function.getAbsolutePath} $trigger ")
-    s"functions deploy $functionName --local-path=${function.getAbsolutePath} $trigger "!
-  }
 
-
-).enablePlugins(ScalaJSPlugin).enablePlugins(WebScalaJSBundlerPlugin)
+).enablePlugins(ScalaJSPlugin).enablePlugins(ScalaJSBundlerPlugin)

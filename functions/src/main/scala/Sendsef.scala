@@ -12,8 +12,9 @@ import scala.scalajs.js
 import scala.scalajs.js.Dictionary
 import scala.scalajs.js.annotation._
 import scala.util.Try
-import japgolly.scalajs.react.vdom.svg_<^._
 import org.scalajs.dom.svg.G
+import slinky.core.WithAttrs
+import slinky.web.svg._
 
 object Communication{
 
@@ -161,31 +162,36 @@ object Sendsef {
   @JSExportTopLevel("renderSVG")
   def renderSVG(req: Request, res: Response) = {
 
-    val values = extractTimeSeries(db
+    val values2 = Seq(Seq(new TimeValue(1,1),TimeValue(2,1),TimeValue(2,2)))
+      /** extractTimeSeries(db
       .collection("imsi")
       .doc(req.param("imsi","invalid")))
-
+**/
     val stock = Stock[TimeValue](
-      data = values,
+      data = values2,
       xaccessor = _.time,
       yaccessor = _.value,
       width = 420,
       height = 360,
       closed = true
     )
-    val lines :js.Array[VdomTagOf[G]] = stock.curves map { curve =>
-      <.g(^.transform := "translate(50,0)",
-        <.path(^.d := curve.area.path.print, ^.fill := "black", ^.stroke := "none"),
-        <.path(^.d := curve.line.path.print, ^.fill := "none", ^.stroke := "black"))
+    val lines:js.Array[WithAttrs[g.tag.type]]  = stock.curves map { curve =>
+      g(
+        transform := "translate(50,0)",
+        path(d := curve.area.path.points(), fill := "black", stroke := "none"),
+        path(d := curve.line.path.points(), fill := "none", stroke := "black"))
 
     }
 
-    val svgString = <.svg(^.width := 480, ^.height := 400,
-      ^.values := lines
+
+    val svgString = svg(width := "480", height := "400",
+      values := lines
     )
-    res.send(japgolly.scalajs.react.ReactDOMServer.renderToString(svgString))
+    res.send(slinky.web.ReactDOMServer.renderToStaticMarkup(svgString))
 
   }
+
+
 
 
   @JSExportTopLevel("getValues")
