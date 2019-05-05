@@ -48,9 +48,9 @@ lazy val dsl =  crossProject(JSPlatform, JVMPlatform)
     resolvers += Resolver.sonatypeRepo("releases"),
     libraryDependencies += "io.scalajs" %%% "nodejs" % "0.4.2",
     libraryDependencies += "org.querki" %%% "querki-jsext" % "0.8",
-    libraryDependencies += "com.zeiss" %%% "johnny5scala-js" % "0.0.2-SNAPSHOT",
+    libraryDependencies += "net.novogarchinsk" %%% "johnny5scala-js" % "0.0.2",
     libraryDependencies += "fr.hmil" %%% "roshttp" % "2.2.3",
-    libraryDependencies += "net.novogarchinsk" %%% "pyshell-scalajs" % "0.1-SNAPSHOT",
+    libraryDependencies += "net.novogarchinsk" %%% "pyshell-scalajs" % "0.1",
     scalaJSLinkerConfig ~= { _.withModuleKind(ModuleKind.CommonJSModule) },
     skip in packageJSDependencies := false,
     scalaJSUseMainModuleInitializer := true,
@@ -63,10 +63,9 @@ lazy val dsl =  crossProject(JSPlatform, JVMPlatform)
 lazy val frontend  = (project in file( "./frontend")).settings(
   name := "frontend",
 
-  npmDependencies in Compile += "react-native" -> "0.58.3",
-  npmDependencies in Compile += "react-native-webview" -> "5.6.0",
 
-
+  npmDependencies in Compile +=   "react-native-webview" -> "5.8.0",
+  npmDependencies in Compile +=   "react-native" -> "0.59.5",
 
 
   libraryDependencies += "io.tmos" %% "arm4s" % "1.1.0",
@@ -82,21 +81,24 @@ lazy val frontend  = (project in file( "./frontend")).settings(
 
 ).enablePlugins(ScalaJSPlugin).enablePlugins(ScalaJSBundlerPlugin, ScalaJSWeb)
 
+
+
+
 lazy val functions  = (project in file("./functions")).settings(
 
   name := "functions",
 
-  scalaJSLinkerConfig ~= { _.withModuleKind(ModuleKind.CommonJSModule) },
+  //scalaJSLinkerConfig ~= { _.withModuleKind(ModuleKind.CommonJSModule) },
 
   scalacOptions += "-P:scalajs:sjsDefinedByDefault",
 
-  webpackConfigFile := Some( (resourceDirectory in Compile).value  /  "webpack.config.js"),
+  webpackBundlingMode := BundlingMode.LibraryAndApplication(),
 
+  requireJsDomEnv in Test := true,
   skip in packageJSDependencies := false,
+
   libraryDependencies += "io.scalajs.npm" %%% "express" % "4.14.1",
-  pipelineStages in Assets := Seq(scalaJSPipeline),
-
-
+   pipelineStages in Assets := Seq(scalaJSPipeline),
 
   libraryDependencies ++= Seq(
     "org.scalactic" %%% "scalactic" % scalaTestVersion,
@@ -115,6 +117,11 @@ lazy val functions  = (project in file("./functions")).settings(
     "io.circe" %%% "circe-shapes"
 
   ).map(_ % circeVersion),
+
+
+  npmDependencies in Compile +=   "paths-js" -> "0.4.7",
+  npmDependencies in Compile +=   "react" -> "16.8.6",
+
 
   InputKey[Unit]("gcDeploy") := {
     val args :Seq[String] = sbt.complete.DefaultParsers.spaceDelimited("gcDeploy <project-id> <functionname>").parsed
@@ -136,4 +143,5 @@ lazy val functions  = (project in file("./functions")).settings(
 
 
 
-).enablePlugins(ScalaJSPlugin).enablePlugins(ScalaJSBundlerPlugin)
+).enablePlugins(ScalaJSPlugin)
+  .enablePlugins(ScalaJSBundlerPlugin)

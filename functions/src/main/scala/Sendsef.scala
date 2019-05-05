@@ -1,10 +1,10 @@
-import java.awt.Color
-
 import FirebaseFunctions.FunctionsConfigFirebase
 import functions.FirebaseFirestore._
 import io.circe.generic.auto._
 import io.scalajs.npm.express.{Request, Response}
 import paths.high.Stock
+import slinky.core.WithAttrs
+import slinky.web.svg._
 
 import scala.compat.Platform
 import scala.concurrent.ExecutionContext.Implicits.global
@@ -12,9 +12,6 @@ import scala.scalajs.js
 import scala.scalajs.js.Dictionary
 import scala.scalajs.js.annotation._
 import scala.util.Try
-import org.scalajs.dom.svg.G
-import slinky.core.WithAttrs
-import slinky.web.svg._
 
 object Communication{
 
@@ -96,7 +93,6 @@ object Sendsef {
 
 
 
-  @ScalaJSDefined
   trait SubmitValueCO[T] extends js.Object {
     val imsi: js.UndefOr[String] = js.undefined
   }
@@ -123,7 +119,6 @@ object Sendsef {
     }
   }
 
-  @ScalaJSDefined
   trait simpleSubmit extends js.Object {
     val port: js.UndefOr[ String] = js.undefined
     val value: js.UndefOr[ String] = js.undefined
@@ -167,13 +162,14 @@ object Sendsef {
       .collection("imsi")
       .doc(req.param("imsi","invalid")))
 **/
-    val stock = Stock[TimeValue](
+    val stock = Stock.apply[TimeValue](
       data = values2,
       xaccessor = _.time,
       yaccessor = _.value,
       width = 420,
       height = 360,
-      closed = true
+      closed = true,
+      sort = false
     )
     val lines:js.Array[WithAttrs[g.tag.type]]  = stock.curves map { curve =>
       g(
@@ -182,8 +178,6 @@ object Sendsef {
         path(d := curve.line.path.points(), fill := "none", stroke := "black"))
 
     }
-
-
     val svgString = svg(width := "480", height := "400",
       values := lines
     )

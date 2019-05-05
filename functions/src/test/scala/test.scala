@@ -9,7 +9,7 @@ import slinky.web.svg._
 import scala.language.{higherKinds, implicitConversions, postfixOps}
 import scala.scalajs.js
 
-class ElementsCoxmpilerTest extends WordSpec  {
+class RenderTest extends WordSpec  {
 
 
 
@@ -364,7 +364,7 @@ class ElementsCoxmpilerTest extends WordSpec  {
   "The PureCompiler" should {
 
     "translate Map" in {
-      val stock = Stock[Event](
+      val stock = Stock.apply[Event](
         data = tickers,
         xaccessor = parseDate,
         yaccessor = _.value,
