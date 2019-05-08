@@ -1,13 +1,14 @@
 
+import PathsStock._
 import colors.Color
 import org.scalatest.WordSpec
-import paths.high.Stock
 import slinky.core.WithAttrs
 import slinky.web.ReactDOMServer
 import slinky.web.svg._
 
 import scala.language.{higherKinds, implicitConversions, postfixOps}
 import scala.scalajs.js
+import js.JSConverters._
 
 class RenderTest extends WordSpec  {
 
@@ -364,14 +365,14 @@ class RenderTest extends WordSpec  {
   "The PureCompiler" should {
 
     "translate Map" in {
-      val stock = Stock.apply[Event](
-        data = tickers,
-        xaccessor = parseDate,
-        yaccessor = _.value,
-        width = 420,
-        height = 360,
-        closed = true
-      )
+      val stock = PathsStock.apply(new StockOpts[Event] {
+        override val data = tickers.toJSArray.map(_.toJSArray)
+        override val xaccessor = js.UndefOr.any2undefOrA( parseDate _)
+        override val yaccessor = js.UndefOr.any2undefOrA(_.value)
+        override val width = 420
+        override val height = 360
+        override val closed = true
+      })
       val lines :js.Array[WithAttrs[g.tag.type]] = stock.curves map { curve =>
         g(
           transform := "translate(50,0)",
@@ -385,6 +386,8 @@ class RenderTest extends WordSpec  {
     }
   }
 }
+
+
 object colors {
   case class Color(r: Double, g: Double, b: Double, alpha: Double = 1)
 

@@ -1,17 +1,20 @@
 import FirebaseFunctions.FunctionsConfigFirebase
+import PathsStock.StockOpts
 import functions.FirebaseFirestore._
 import io.circe.generic.auto._
 import io.scalajs.npm.express.{Request, Response}
-import paths.high.Stock
 import slinky.core.WithAttrs
+import slinky.web.html.{body, html}
 import slinky.web.svg._
 
 import scala.compat.Platform
 import scala.concurrent.ExecutionContext.Implicits.global
+import scala.concurrent.Future
 import scala.scalajs.js
-import scala.scalajs.js.Dictionary
 import scala.scalajs.js.annotation._
+import scala.scalajs.js.{Dictionary, |}
 import scala.util.Try
+import js.JSConverters._
 
 object Communication{
 
@@ -147,43 +150,41 @@ object Sendsef {
 
   case class TimeValue(time:Long,value:Double)
 
-  def extractTimeSeries(documentReference: DocumentReference):Seq[Seq[TimeValue]] = {
-    documentReference.collection("timeseries")
-      .get.toFuture
-      .map(_.docs.map(_.data()))
-    Seq(Seq(new TimeValue(1,1),TimeValue(2,1),TimeValue(2,2)))
+  def extractTimeSeries(documentReference: DocumentReference):Future[Seq[TimeValue]] = {
+    val t :CollectionReference = documentReference
+      .collection("timeseries")
+    t.doc()
+    ???
   }
+
 
   @JSExportTopLevel("renderSVG")
   def renderSVG(req: Request, res: Response) = {
 
-    val values2 = Seq(Seq(new TimeValue(1,1),TimeValue(2,1),TimeValue(2,2)))
-      /** extractTimeSeries(db
+    val values2 = extractTimeSeries(db
       .collection("imsi")
-      .doc(req.param("imsi","invalid")))
-**/
-    val stock = Stock.apply[TimeValue](
-      data = values2,
-      xaccessor = _.time,
-      yaccessor = _.value,
-      width = 420,
-      height = 360,
-      closed = true,
-      sort = false
-    )
-    val lines:js.Array[WithAttrs[g.tag.type]]  = stock.curves map { curve =>
-      g(
-        transform := "translate(50,0)",
-        path(d := curve.area.path.points(), fill := "black", stroke := "none"),
-        path(d := curve.line.path.points(), fill := "none", stroke := "black"))
+      .doc(req.param("imsi","invalid"))).map(v2 => {
 
-    }
-    val svgString = svg(width := "480", height := "400",
-      values := lines
-    )
-    res.send(slinky.web.ReactDOMServer.renderToStaticMarkup(svgString))
+      val stock = PathsStock.apply(new StockOpts[TimeValue] {
+        override val data = Seq(v2.toJSArray).toJSArray
+        override val xaccessor = js.UndefOr.any2undefOrA(_.time)
+        override val yaccessor = js.UndefOr.any2undefOrA(_.value)
+        override val width = 420
+        override val height = 360
+        override val closed = true
+      })
+      val lines: js.Array[WithAttrs[g.tag.type]] = stock.curves map { curve =>
+        g(
+          //transform := "translate(50,0)",
+          path(d := curve.area.path.print(), fill := "black", stroke := "none"),
+          path(d := curve.line.path.print(), fill := "none", stroke := "black"))
 
+      }
+      val svgString = svg(width := "480", height := "400")(lines.jsIterator().next().value)
+      res.send(slinky.web.ReactDOMServer.renderToStaticMarkup(html(body(svgString))))
+    })
   }
+
 
 
 

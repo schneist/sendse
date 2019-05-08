@@ -1,5 +1,13 @@
+import java.io.File
+import java.nio.file.Path
+
+import org.scalajs.core.tools.io.{RelativeVirtualFile, VirtualJSFile}
+import sbt.KeyRanks.CTask
 import sbt.Keys.scalaVersion
+import sbt.io.FileFilter
+import sbt.librarymanagement.DependencyFilter
 import sbtcrossproject.CrossPlugin.autoImport.{CrossType, crossProject}
+import scalajsbundler.sbtplugin.NpmUpdateTasks
 
 import scala.sys.process._
 
@@ -88,27 +96,33 @@ lazy val functions  = (project in file("./functions")).settings(
 
   name := "functions",
 
-  //scalaJSLinkerConfig ~= { _.withModuleKind(ModuleKind.CommonJSModule) },
+  scalaJSLinkerConfig ~= { _.withModuleKind(ModuleKind.CommonJSModule) },
 
-  scalacOptions += "-P:scalajs:sjsDefinedByDefault",
+  scalacOptions ++= Seq(
+    "-P:scalajs:sjsDefinedByDefault",
+    "-feature",
+    "-deprecation",
+    "-language:reflectiveCalls"
+  ),
 
-  webpackBundlingMode := BundlingMode.LibraryAndApplication(),
 
-  requireJsDomEnv in Test := true,
-  skip in packageJSDependencies := false,
+  skip in packageJSDependencies in Test := false,
+  skip in packageJSDependencies in Compile := true,
 
-  libraryDependencies += "io.scalajs.npm" %%% "express" % "4.14.1",
-   pipelineStages in Assets := Seq(scalaJSPipeline),
+
+  //webpackResources := baseDirectory.value * "*.js",
+  pipelineStages in Assets := Seq(scalaJSPipeline),
 
   libraryDependencies ++= Seq(
     "org.scalactic" %%% "scalactic" % scalaTestVersion,
     "org.scalatest" %%% "scalatest" % scalaTestVersion % "test"),
 
   libraryDependencies ++= Seq(
-    "eu.unicredit" %%% "paths-scala-js" % "0.4.5",
-    "me.shadaj" %%% "slinky-core" % "0.6.0",
-    "me.shadaj" %%% "slinky-web" % "0.6.0",
+    "me.shadaj" %%% "slinky-core" % "0.6.1",
+    "me.shadaj" %%% "slinky-web" % "0.6.1",
   ),
+
+  libraryDependencies += "io.scalajs.npm" %%% "express" % "4.14.1",
 
   libraryDependencies ++= Seq(
     "io.circe" %%% "circe-core",
@@ -117,11 +131,6 @@ lazy val functions  = (project in file("./functions")).settings(
     "io.circe" %%% "circe-shapes"
 
   ).map(_ % circeVersion),
-
-
-  npmDependencies in Compile +=   "paths-js" -> "0.4.7",
-  npmDependencies in Compile +=   "react" -> "16.8.6",
-
 
   InputKey[Unit]("gcDeploy") := {
     val args :Seq[String] = sbt.complete.DefaultParsers.spaceDelimited("gcDeploy <project-id> <functionname>").parsed
@@ -144,4 +153,6 @@ lazy val functions  = (project in file("./functions")).settings(
 
 
 ).enablePlugins(ScalaJSPlugin)
-  .enablePlugins(ScalaJSBundlerPlugin)
+
+
+
