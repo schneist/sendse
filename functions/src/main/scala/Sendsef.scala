@@ -153,7 +153,6 @@ object Sendsef {
   def extractTimeSeries(documentReference: DocumentReference):Future[Seq[TimeValue]] = {
     val t :CollectionReference = documentReference
       .collection("timeseries")
-    t.doc()
     ???
   }
 
@@ -161,7 +160,7 @@ object Sendsef {
   @JSExportTopLevel("renderSVG")
   def renderSVG(req: Request, res: Response) = {
 
-    val values2 = extractTimeSeries(db
+    extractTimeSeries(db
       .collection("imsi")
       .doc(req.param("imsi","invalid"))).map(v2 => {
 
