@@ -1,7 +1,9 @@
-import Path.Path
-import PathsLinear.Linear
-import PathsPolygon.{Polygon, PolygonOpts}
-import paths.Point
+package org.novogarchinsk.functions.jsimport
+
+import org.novogarchinsk.functions.jsimport.Path.Path
+import org.novogarchinsk.functions.jsimport.PathsLinear.Linear
+import org.novogarchinsk.functions.jsimport.PathsPolygon.{Polygon, PolygonOpts}
+import org.novogarchinsk.functions.jsimport.paths.Point
 
 import scala.scalajs.js
 import scala.scalajs.js.JSConverters._

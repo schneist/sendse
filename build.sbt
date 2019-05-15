@@ -115,11 +115,11 @@ lazy val functions  = (project in file("./functions")).settings(
 
   libraryDependencies ++= Seq(
     "org.scalactic" %%% "scalactic" % scalaTestVersion,
-    "org.scalatest" %%% "scalatest" % scalaTestVersion % "test"),
-
-  libraryDependencies ++= Seq(
+    "org.scalatest" %%% "scalatest" % scalaTestVersion % "test",
+    "eu.timepit" %%% "refined" % "0.9.5",
     "me.shadaj" %%% "slinky-core" % "0.6.1",
     "me.shadaj" %%% "slinky-web" % "0.6.1",
+    "org.scalaz" %%% "scalaz-zio" % "1.0-RC4"
   ),
 
   libraryDependencies += "io.scalajs.npm" %%% "express" % "4.14.1",

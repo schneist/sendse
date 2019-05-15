@@ -1,4 +1,4 @@
-package functions
+package org.novogarchinsk.functions.jsimport
 
 import scala.scalajs.js
 import scala.scalajs.js.annotation.JSGlobal

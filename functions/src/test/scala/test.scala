@@ -1,6 +1,7 @@
 
-import PathsStock._
+import org.novogarchinsk.functions.jsimport.PathsStock._
 import colors.Color
+import org.novogarchinsk.functions.jsimport.PathsStock
 import org.scalatest.WordSpec
 import slinky.core.WithAttrs
 import slinky.web.ReactDOMServer
