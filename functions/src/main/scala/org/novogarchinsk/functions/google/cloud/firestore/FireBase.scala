@@ -1,11 +1,10 @@
-package org.novogarchinsk.functions.jsimport
+package org.novogarchinsk.functions.google.cloud.firestore
 
-import org.novogarchinsk.functions.jsimport.FirebaseFirestore.{CollectionReference, DocumentReference}
-import org.novogarchinsk.functions.jsimport.FirebaseFunctions.FunctionsConfigFirebase
+import org.novogarchinsk.functions.google.cloud.firestore.FirebaseFunctions.FunctionsConfigFirebase
+import FirebaseFirestore.{CollectionReference, DocumentReference}
 
 import scala.scalajs.js
 import scala.scalajs.js.annotation.JSImport
-
 
 
 @js.native
@@ -13,7 +12,6 @@ import scala.scalajs.js.annotation.JSImport
 object FirebaseFunctions extends js.Object {
 
   def config():FunctionsConfig = js.native
-
 
   @js.native
   class  FunctionsConfig extends js.Object {

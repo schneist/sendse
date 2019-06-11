@@ -5,7 +5,7 @@ import java.util.UUID
 import cats.Monad
 import cats.implicits._
 import dsl.elements.{MarshalledOperation, OperationDefinition}
-import dsl.interpreter.MarshalledTaskInterpreter
+import dsl.interpreter.monix.MarshalledTaskInterpreter
 import monix.eval.Task
 import monix.execution.Scheduler.Implicits.global
 import org.scalatest.{Matchers, WordSpec}

@@ -7,6 +7,7 @@ import scala.language.{higherKinds, implicitConversions}
 trait Operation[F[_]] {
 
   def Pure[Out](input: Out): F[Out]
+
 }
 
 trait FunctionOperation[F[_]] extends Operation[F]{

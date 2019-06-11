@@ -1,13 +1,5 @@
-import java.io.File
-import java.nio.file.Path
-
-import org.scalajs.core.tools.io.{RelativeVirtualFile, VirtualJSFile}
-import sbt.KeyRanks.CTask
 import sbt.Keys.scalaVersion
-import sbt.io.FileFilter
-import sbt.librarymanagement.DependencyFilter
 import sbtcrossproject.CrossPlugin.autoImport.{CrossType, crossProject}
-import scalajsbundler.sbtplugin.NpmUpdateTasks
 
 import scala.sys.process._
 
@@ -104,8 +96,7 @@ lazy val functions  = (project in file("./functions")).settings(
     "-deprecation",
     "-language:reflectiveCalls"
   ),
-
-
+  addCompilerPlugin("org.scalamacros" % "paradise" % "2.1.0" cross CrossVersion.full),
   skip in packageJSDependencies in Test := false,
   skip in packageJSDependencies in Compile := true,
 
@@ -119,7 +110,8 @@ lazy val functions  = (project in file("./functions")).settings(
     "eu.timepit" %%% "refined" % "0.9.5",
     "me.shadaj" %%% "slinky-core" % "0.6.1",
     "me.shadaj" %%% "slinky-web" % "0.6.1",
-    "org.scalaz" %%% "scalaz-zio" % "1.0-RC4"
+    "org.scalaz" %%% "scalaz-zio" % "1.0-RC4",
+      "com.github.mpilquist" %% "simulacrum" % "0.16.0"
   ),
 
   libraryDependencies += "io.scalajs.npm" %%% "express" % "4.14.1",

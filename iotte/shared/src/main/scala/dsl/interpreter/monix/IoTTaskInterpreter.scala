@@ -1,4 +1,4 @@
-package dsl.interpreter
+package dsl.interpreter.monix
 
 import dsl.elements.{IoTOperation, OperationDefinition}
 import monix.eval.Task
@@ -54,4 +54,7 @@ class IoTTaskInterpreter[C] extends  IoTOperation[Task] {
                             ): Task[Subscriber[Out]] = {
     Task.pure(operationDefinition.definition(input,ctx))
   }
+
+  override def Pure[Out](input: Out) = Task.apply(input)
+
 }

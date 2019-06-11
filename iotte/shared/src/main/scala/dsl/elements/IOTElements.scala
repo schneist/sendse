@@ -5,7 +5,7 @@ import org.reactivestreams.{Publisher, Subscriber}
 import scala.language.{higherKinds, implicitConversions}
 
 
-trait IoTOperation[F[_]]  {
+trait IoTOperation[F[_]] extends Operation[F] {
 
   type Context
 

@@ -2,7 +2,7 @@ package demo
 
 import definitions.PythonDefinitions
 import dsl.elements.MarshalledOperation
-import dsl.interpreter.MarshalledTaskInterpreter
+import dsl.interpreter.monix.MarshalledTaskInterpreter
 import monix.eval.Task
 import monix.execution.Scheduler.Implicits.global
 import python.pythonshell.{ModeEnum, PythonShellScala}

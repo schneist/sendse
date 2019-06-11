@@ -1,4 +1,4 @@
-package dsl.interpreter
+package dsl.interpreter.monix
 
 import cats.implicits._
 import dsl.elements._

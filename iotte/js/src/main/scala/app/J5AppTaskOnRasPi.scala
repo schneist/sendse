@@ -1,6 +1,6 @@
 package demo
 import dsl.elements.IoTOperation
-import dsl.interpreter.IoTTaskInterpreter
+import dsl.interpreter.monix.IoTTaskInterpreter
 import johnnyfivescalajs.JohnnyFive.Board
 import monix.eval.Task
 import monix.execution.Scheduler.Implicits.global

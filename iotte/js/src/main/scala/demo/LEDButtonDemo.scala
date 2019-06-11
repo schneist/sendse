@@ -4,7 +4,7 @@ import cats.implicits._
 import definitions.HttpDefinitions
 import definitions.J5Definitions._
 import dsl.elements.IoTOperation
-import dsl.interpreter.{IoTTaskInterpreter, MarshalledTaskInterpreter}
+import dsl.interpreter.monix.{IoTTaskInterpreter, MarshalledTaskInterpreter}
 import fr.hmil.roshttp.HttpRequest
 import johnnyfivescalajs.AndroidCompBindings
 import monix.eval.Task

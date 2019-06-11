@@ -1,4 +1,4 @@
-package org.novogarchinsk.functions.jsimport
+package org.novogarchinsk.functions.google.cloud.firestore
 
 import scala.scalajs.js
 import scala.scalajs.js.annotation.JSGlobal
