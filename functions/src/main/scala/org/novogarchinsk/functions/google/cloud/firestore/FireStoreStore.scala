@@ -1,32 +1,37 @@
 package org.novogarchinsk.functions.google.cloud.firestore
 
-import io.scalajs.npm.express.{Request, Response}
-import org.novogarchinsk.functions.google.cloud.firestore.FirebaseFirestore.{CollectionReference, DocumentReference, DocumentSnapshot, SetOptions}
-import org.novogarchinsk.functions.{Identifier, IdentifierName, StoreableDocument, TimeSeriesStore, TimeValue}
+import com.sun.source.doctree.SerialFieldTree
+import eu.timepit.refined.api.Refined
+import eu.timepit.refined.boolean.And
+import eu.timepit.refined.collection.{MaxSize, MinSize}
+import org.novogarchinsk.functions.google.cloud.firestore.FirebaseFirestore.{DocumentData, DocumentSnapshot}
+import org.novogarchinsk.functions.{TimeSeriesStore, _}
 import scalaz.zio.{IO, ZIO}
+import shapeless.{::, tag, _}
+import shapeless.labelled.{FieldBuilder, FieldType, KeyTag}
+import record._
+import ops.record._
+import org.novogarchinsk.functions.google.cloud.firestore.gcloud.Extractor.SimpleExtractor
+import shapeless.Witness.Aux
+import syntax.singleton._
 
-import scala.compat.Platform
-import scala.concurrent.{ExecutionContext, Future}
+import scala.language.higherKinds
+import scala.language.existentials
 import scala.reflect.ClassTag
 import scala.scalajs.js
-import scala.scalajs.js.Dictionary
-import scala.scalajs.js.annotation.JSExportTopLevel
 
-class Firestore {
-
-}
 object gcloud {
 
   //ToDo:: how to limit the id
-  type StringID = String //Refined MinSize[Witness.`5`.T] And MaxSize[Witness.`15`.T]
+  type StringID = String Refined MinSize[Witness.`5`.T] And MaxSize[Witness.`15`.T]
 
-  class GCFireStore[StoredDocumentT:StoreableDocument](
-                                                        conv: (DocumentSnapshot => IO[Throwable,StoredDocumentT])
-                                                      ) extends TimeSeriesStore[StoredDocumentT,StringID, Throwable, FirebaseAdmin.FireStoreDB, ZIO] {
+  class GCFireStore[StoredDocumentT <: Product :StoreableDocument](
+                                                                    conv: (DocumentSnapshot => IO[Throwable,StoredDocumentT])
+                                                                  ) extends TimeSeriesStore[StoredDocumentT,StringID, Throwable, FirebaseAdmin.FireStoreDB, ZIO] {
 
     type Env = FirebaseAdmin.FireStoreDB
 
-    implicit val identifierName: IdentifierName[StoredDocumentT,StringID] = new IdentifierName[StoredDocumentT,StringID]("")
+    implicit val identifierName: IdentifierName[StoredDocumentT,StringID] = new IdentifierName[StoredDocumentT,StringID](???)
 
     override def getById(identifier: Identifier[StoredDocumentT,StringID]): ZIO[Env, Throwable, StoredDocumentT] = for {
       db <- ZIO.environment[Env]
@@ -41,7 +46,7 @@ object gcloud {
   implicit val storedDocument : StoreableDocument[TimeValue] = new StoreableDocument[TimeValue] {
     override def identifier[With](d: TimeValue)(implicit c: TimeValue => With) =  new Identifier[TimeValue,With](c(d)) {}
 
-    override def rowname = ???
+    override def fieldNames() = fieldNames[TimeValue]
   }
 
   implicit class UnionFold[A, B](union: js.|[A, B]) {
@@ -51,87 +56,129 @@ object gcloud {
     }
   }
 
-  object TimeSeriesStore extends GCFireStore[TimeValue](documentSnapshot =>  {
-    ZIO.apply( TimeValue(
-      Integer.parseInt(documentSnapshot.id),
-      documentSnapshot.data().fold(fa => fa.get(storedDocument.rowname).fold( 2.0)(_ => 2.0) ,_ => 0)
-    ))
+  trait Extractor[V]{
+
+    def from[K](doc:DocumentData)(implicit ev: Witness.Aux[K]) : V with labelled.KeyTag[Symbol with tag.Tagged[K], V]
+
+  }
+
+  implicit object Extractor{
+
+    class SimpleExtractor[V] extends Extractor[V]{
+
+      def singletonValueName[K <: Symbol](implicit ev: Witness.Aux[K]): String = ev.value.name
+
+      override def from[K](doc: DocumentData)(implicit ev: Witness.Aux[K]) : V with labelled.KeyTag[Symbol with tag.Tagged[K], V]  = {
+        val name :String =  ??? // singletonValueName[K]
+
+        val v :V = doc.get(name).asInstanceOf[V]
+
+        val ret = new FieldBuilder[Symbol with tag.Tagged[K]].apply(v)
+        ret
+      }
+
+    }
+
+    // "Summoner" method
+    def apply[T](implicit pack: Extractor[T]): Extractor[T] = pack
+
+    // "Constructor" method
+    def instance[T]: Extractor[T] = new SimpleExtractor[T]
+
+
+  }
+
+  abstract class ReprFact[R]{
+    def getRepr(documentSnapshot: DocumentData)(implicit ev: Witness.Aux[_]) :R
+  }
+
+  object ReprFact {
+
+    implicit def NilRepr: ReprFact[HNil] = new ReprFact[HNil] {
+      override def getRepr(documentSnapshot: DocumentData)(implicit ev: Aux[_]) = HNil
+    }
+
+
+    implicit def SingleRepr[K <:Symbol,V <: KeyTag[Symbol with tag.Tagged[K], V] ](implicit extractor: Extractor[V],ev: Witness.Aux[K]):ReprFact[V] =
+      new ReprFact[V] {
+      override def getRepr(documentSnapshot: DocumentData)(implicit ev: Witness.Aux[_]) =
+        extractor.from(documentSnapshot)(ev.asInstanceOf[Witness.Aux[K]])
+    }
+
+    implicit def PairRepr[Head <: HList, Tail <: HList, Comb <: Head :: Tail](
+                                                                               implicit reprFactH: ReprFact[Head],
+                                                                               reprFactT: ReprFact[Tail],
+                                                                             ): ReprFact[Comb] = ???
+
+  }
+
+
+  /*
+    object dec {
+
+      // "Summoner" method
+      def apply[T, Y <: HList](implicit pack: dec[T, Y]): dec[T, Y] = pack
+
+      // "Constructor" method
+      def instance[T, Y <: HList] (extractor: Extractor[T]): dec[T, Y] = new simpleDec[T, Y](extractor)
+
+
+      def pairDec[A, B <: HList, C <: HList](implicit ab: dec[A, B], bc: dec[B, C]): pairDec[A, C] = new pairDec {
+        override def d[K <: Symbol](doc: DocumentData, rest: C)(implicit ev: Aux[K]) :pa = ???
+      }
+
+      def nilDec[A](implicit extractor: Extractor[A]) : dec[A,HNil] = new simpleDec[A,HNil](extractor)
+    }
+  */
+
+  object GCTimeSeriesStore extends GCFireStore[TimeValue](conv =  (a:DocumentSnapshot) => {
+    a.data().fold(
+      aa => ZIO.apply {
+        val gen = LabelledGeneric[TimeValue]
+
+        //val fieldN: List[String] = storedDocument.fieldNames()
+
+
+        //ToDo:: add Extractor for HNil
+        //ToDo:: add Extractor for  Decoder[FieldType[K, V] :+: R]
+
+
+        type ds =
+          Long with labelled.KeyTag[Symbol with shapeless.tag.Tagged[Witness.`"time"`.T], Long]::
+            Double with labelled.KeyTag[Symbol with shapeless.tag.Tagged[Witness.`"value"`.T], Double]::
+            HNil
+        import ReprFact._
+        implicitly[ReprFact[HNil]]
+
+        type t = Witness.`"value"`.T
+        type v = FieldType[ Symbol with shapeless.tag.Tagged[t],Double]
+        implicit val v = new ReprFact[v] {
+          override def getRepr(documentSnapshot: DocumentData)(implicit ev: Aux[_]) = ???
+        }
+        implicitly[ReprFact[v]]
+        // implicitly[ReprFact[Double with labelled.KeyTag[Symbol with shapeless.tag.Tagged[Witness.`"value"`.T], Double]]]
+        // val tt :ds = tbd.get[ds]
+        //val tt = fieldN
+        //  .map(fn =>(Symbol(fn), aa.get(fn)))
+        // .foldRight[HList](HNil())((a1,a2) => a1._1 ->> a1._2 :: a2)
+        val tt :ds = ???
+        gen.from(tt)
+        ??? // new TimeValue(aa.get())
+      }
+      ,
+      _ => ZIO.fail(new Exception())
+    )
+
+
   })
-}
-
-
-
-
-
-
-
-object TimeSeriesStoreFunctions {
-
-  implicit val ec = ExecutionContext.global
-
-  FirebaseAdmin.initializeApp(FirebaseFunctions.config().firebase)
-
-  val db: FirebaseAdmin.FireStoreDB = FirebaseAdmin.firestore()
-
-  @JSExportTopLevel("submitValue")
-  def submitValue(req: Request, res: Response) = {
-    db
-      .collection("imsi")
-      .doc(req.param("imsi","invalid"))
-      .collection("timeseries")
-      .doc(Platform.currentTime.toString)
-      .set(
-        Dictionary.apply(
-          "value" -> req.param("value","--"),
-          "port" -> req.param("port","-")
-        ),
-        new SetOptions {
-          override val merge = true
-        }
-      ).toFuture
-      .map(res.send)
-  }
-
-
-
-  def extractTimeSeries(documentReference: DocumentReference):Future[Seq[TimeValue]] = {
-    val t :CollectionReference = documentReference
-      .collection("timeseries")
-    ???
-  }
-
-
-
-
-
-
-  @JSExportTopLevel("getValues")
-  def getValue(req: Request, res: Response) = {
-    db
-      .collection("imsi")
-      .doc(req.param("imsi","invalid"))
-      .collection("timeseries")
-      .get.toFuture.map(d => res.send(d.docs.map(_.data())))
-  }
-
-  @JSExportTopLevel("register")
-  def register(req: Request, res: Response) = {
-    db.collection("ips")
-      .doc(req.param("imsi",""))
-      .set(Dictionary.apply(
-        "ip" -> req.param("ip",req.ip),
-        "imsi"-> req.param("imsi","")
-
-      ),
-        new SetOptions {
-          override val merge = true
-        }
-      )
-    res.send(req.ip.toString)
-  }
-
 
 }
+
+
+
+
+
+
 
 
 

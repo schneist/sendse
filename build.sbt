@@ -11,7 +11,7 @@ ThisBuild / scalaVersion := "2.12.8"
 ideaPort in Global := 65337
 
 val circeVersion = "0.11.1"
-val scalaTestVersion = "3.0.5"
+val scalaTestVersion = "3.0.8"
 
 lazy val dsl =  crossProject(JSPlatform, JVMPlatform)
   .crossType(CrossType.Full).in(file("""./iotte""")).
@@ -69,8 +69,8 @@ lazy val frontend  = (project in file( "./frontend")).settings(
 
 
   libraryDependencies += "io.tmos" %% "arm4s" % "1.1.0",
-  libraryDependencies += "me.shadaj" %%% "slinky-native" % "0.6.0",
-  libraryDependencies += "me.shadaj" %%% "slinky-hot" % "0.6.0",
+  libraryDependencies += "me.shadaj" %%% "slinky-native" % "0.6.2",
+  libraryDependencies += "me.shadaj" %%% "slinky-hot" % "0.6.2",
   libraryDependencies += "io.monix" %%% "monix" % "3.0.0-RC2",
   libraryDependencies += "com.github.karasiq" %%% "scalajs-highcharts" % "1.2.1",
   scalacOptions += "-P:scalajs:sjsDefinedByDefault",
@@ -107,11 +107,11 @@ lazy val functions  = (project in file("./functions")).settings(
   libraryDependencies ++= Seq(
     "org.scalactic" %%% "scalactic" % scalaTestVersion,
     "org.scalatest" %%% "scalatest" % scalaTestVersion % "test",
-    "eu.timepit" %%% "refined" % "0.9.5",
-    "me.shadaj" %%% "slinky-core" % "0.6.1",
-    "me.shadaj" %%% "slinky-web" % "0.6.1",
-    "org.scalaz" %%% "scalaz-zio" % "1.0-RC4",
-      "com.github.mpilquist" %% "simulacrum" % "0.16.0"
+    "eu.timepit" %%% "refined" % "0.9.8",
+    "me.shadaj" %%% "slinky-core" % "0.6.2",
+    "me.shadaj" %%% "slinky-web" % "0.6.2",
+    "org.scalaz" %%% "scalaz-zio" % "1.0-RC5",
+    "com.github.mpilquist" %% "simulacrum" % "0.19.0"
   ),
 
   libraryDependencies += "io.scalajs.npm" %%% "express" % "4.14.1",

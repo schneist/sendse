@@ -1,7 +1,12 @@
 package org.novogarchinsk.functions
 
 import simulacrum.typeclass
+
 import scala.language.higherKinds
+import scala.language.implicitConversions
+import shapeless.ops.hlist.ToTraversable
+import shapeless.ops.record.Keys
+import shapeless.{HList, LabelledGeneric}
 
 class IdentifierName[I,N](n:N){
   def name: N = n
@@ -15,20 +20,34 @@ abstract class Identifier[Identified,With](val value:With){
 }
 
 @typeclass
-trait StoreableDocument[DocT]{
+trait StoreableDocument[DocT <: Product]{
 
   def identifier[With]( d: DocT)(implicit c : DocT => With) : Identifier[DocT,With]
 
-  def rowname:String
+  trait FieldNames[T] {
+    def apply(): List[(String)]
+  }
 
+  def fieldNames[T](implicit h: FieldNames[T]) = h()
+
+  implicit def toNames[T, Repr <: HList, KeysRepr <: HList](
+                                                             implicit gen: LabelledGeneric.Aux[T, Repr],
+                                                             keys: Keys.Aux[Repr, KeysRepr],
+                                                             traversable: ToTraversable.Aux[KeysRepr, List, Symbol]
+                                                           ): FieldNames[T] = {
+    () => keys().toList.map(a => (a.name))
+  }
+  def fieldNames() : List[String]
 }
 
 
-abstract class  TimeSeriesStore[V : StoreableDocument,ID ,Error <: Throwable,Environment, T[_,_,_]] {
+abstract class  TimeSeriesStore[V <:Product : StoreableDocument,ID ,Error <: Throwable,Environment, T[_,_,_]] {
+
+
 
   def getById(identifier:Identifier[V,ID]):T[Environment,Error,V]
 
   def store(value:V):T[Environment,Error,Unit]
 
-}
 
+}
