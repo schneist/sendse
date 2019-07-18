@@ -88,7 +88,7 @@ object gcloud {
 
   }
 
-  abstract class ReprFact[R]{
+  abstract class ReprFact[R ]{
     def getRepr(documentSnapshot: DocumentData)(implicit ev: Witness.Aux[_]) :R
   }
 
@@ -101,35 +101,18 @@ object gcloud {
 
     implicit def SingleRepr[K <:Symbol,V <: KeyTag[Symbol with tag.Tagged[K], V] ](implicit extractor: Extractor[V],ev: Witness.Aux[K]):ReprFact[V] =
       new ReprFact[V] {
-      override def getRepr(documentSnapshot: DocumentData)(implicit ev: Witness.Aux[_]) =
-        extractor.from(documentSnapshot)(ev.asInstanceOf[Witness.Aux[K]])
-    }
+        override def getRepr(documentSnapshot: DocumentData)(implicit ev: Witness.Aux[_]) =
+          extractor.from(documentSnapshot)(ev.asInstanceOf[Witness.Aux[K]])
+      }
 
-    implicit def PairRepr[Head <: HList, Tail <: HList, Comb <: Head :: Tail](
-                                                                               implicit reprFactH: ReprFact[Head],
-                                                                               reprFactT: ReprFact[Tail],
-                                                                             ): ReprFact[Comb] = ???
+    implicit def PairRepr[Head , Tail <: HList ](
+                                                  implicit reprFactH: ReprFact[Head],
+                                                  reprFactT: ReprFact[Tail],
+                                                ): ReprFact[Head::Tail] = ???
 
   }
 
 
-  /*
-    object dec {
-
-      // "Summoner" method
-      def apply[T, Y <: HList](implicit pack: dec[T, Y]): dec[T, Y] = pack
-
-      // "Constructor" method
-      def instance[T, Y <: HList] (extractor: Extractor[T]): dec[T, Y] = new simpleDec[T, Y](extractor)
-
-
-      def pairDec[A, B <: HList, C <: HList](implicit ab: dec[A, B], bc: dec[B, C]): pairDec[A, C] = new pairDec {
-        override def d[K <: Symbol](doc: DocumentData, rest: C)(implicit ev: Aux[K]) :pa = ???
-      }
-
-      def nilDec[A](implicit extractor: Extractor[A]) : dec[A,HNil] = new simpleDec[A,HNil](extractor)
-    }
-  */
 
   object GCTimeSeriesStore extends GCFireStore[TimeValue](conv =  (a:DocumentSnapshot) => {
     a.data().fold(
@@ -150,20 +133,27 @@ object gcloud {
         import ReprFact._
         implicitly[ReprFact[HNil]]
 
-        type t = Witness.`"value"`.T
-        type v = FieldType[ Symbol with shapeless.tag.Tagged[t],Double]
-        implicit val v = new ReprFact[v] {
+
+        implicit val v = new ReprFact[Long with labelled.KeyTag[Symbol with shapeless.tag.Tagged[Witness.`"time"`.T], Long]] {
           override def getRepr(documentSnapshot: DocumentData)(implicit ev: Aux[_]) = ???
         }
-        implicitly[ReprFact[v]]
+
+        implicit val vv = new ReprFact[Double with labelled.KeyTag[Symbol with shapeless.tag.Tagged[Witness.`"value"`.T], Double]] {
+          override def getRepr(documentSnapshot: DocumentData)(implicit ev: Aux[_]) = ???
+        }
+        implicitly[ReprFact[Double with labelled.KeyTag[Symbol with shapeless.tag.Tagged[Witness.`"value"`.T], Double]]]
+
+
+        val r = implicitly[ReprFact[ds]]
         // implicitly[ReprFact[Double with labelled.KeyTag[Symbol with shapeless.tag.Tagged[Witness.`"value"`.T], Double]]]
         // val tt :ds = tbd.get[ds]
         //val tt = fieldN
         //  .map(fn =>(Symbol(fn), aa.get(fn)))
         // .foldRight[HList](HNil())((a1,a2) => a1._1 ->> a1._2 :: a2)
-        val tt :ds = ???
+
+        val tt :ds =  ??? //r.getRepr(aa)
         gen.from(tt)
-        ??? // new TimeValue(aa.get())
+        // new TimeValue(aa.get())
       }
       ,
       _ => ZIO.fail(new Exception())
