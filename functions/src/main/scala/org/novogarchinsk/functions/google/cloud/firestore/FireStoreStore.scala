@@ -37,7 +37,7 @@ object gcloud {
       b <-  conv(a)
     } yield b
 
-   // override def store(value: StoredDocumentT) = ???
+    // override def store(value: StoredDocumentT) = ???
   }
 
   implicit val storedDocument : StoreableDocument[TimeValue] = new StoreableDocument[TimeValue] {
@@ -64,15 +64,9 @@ object gcloud {
     class SimpleFieldTypeExtractor[Value] extends FieldTypeExtractor[Value]{
 
       override def from[Key<:Symbol](doc: DocumentData)
-                                    (implicit ev: Witness.Aux[Key]):Option[FieldType[Key,Value]] = {
-
-        Try{
-          val fb = new FieldBuilder[Key]
-          val v :js.Any  = doc.get(ev.value.name).get
-          println("----------------------------------" +v)
-          fb.apply(v.asInstanceOf[Value])
-        }.toOption
-      }
+                                    (implicit ev: Witness.Aux[Key]):Option[FieldType[Key,Value]] = Try{
+        new FieldBuilder[Key].apply( doc.get(ev.value.name).get.asInstanceOf[Value])
+      }.toOption
 
     }
 
@@ -123,81 +117,19 @@ object gcloud {
 
   class ConvertHelper[A] {
     def from[R <: HList](m: DocumentData)(implicit
-                                              gen: LabelledGeneric.Aux[A, R],
-                                              fromMap: ReprFact[R]
+                                          gen: LabelledGeneric.Aux[A, R],
+                                          fromMap: ReprFact[R]
     ): Option[A] = fromMap(m).map(gen.from(_))
   }
 
   def to[A]: ConvertHelper[A] = new ConvertHelper[A]
 
-  /*
-    object ReprFact {
 
-      implicit def symbolWitness[TT](implicit tv : Witness.Aux[TT]) = new Witness {
-
-        override type T = @@[Symbol,TT]
-
-        override val value =  tag.apply[scala.Symbol].apply(tv.value).asInstanceOf[@@[Symbol,TT]]
-      }
-
-
-
-
-      implicit def SingleRepr[K, T<: @@[Symbol,K],V](
-                                                      implicit extractor: FieldTypeExtractor[V]
-                                                    ) = new ReprFact[V] {
-        override def getRepr(documentSnapshot: DocumentData) =
-          extractor.from(documentSnapshot)(symbolWitness[])
-      }
-
-      implicit def PairRepr[Head , Tail <: HList ](
-                                                    implicit reprFactH: ReprFact[Head],
-                                                    reprFactT: ReprFact[Tail],
-                                                  ): ReprFact[Head::Tail] = ???
-
-      def get[R](documenData: DocumentData)(implicit rf: ReprFact[R]) :R = rf.getRepr(documenData)
-    }
-
-  */
 
   object GCTimeSeriesStore extends GCFireStore[TimeValue](conv =  (a:DocumentSnapshot) => {
     a.data().fold(
       aa => ZIO.apply {
-
-
-        /*
-
-        type time = Witness.`"time"`.T
-        type value = Witness.`"value"`.T
-
-        type timeS = @@[Symbol,time]
-        type valueS = Symbol with shapeless.tag.Tagged[value]
-
-        type timeFT = FieldType[timeS, Long]
-        type valueFT = FieldType[valueS, Double]
-
-
-        type ds = timeFT :: valueFT :: HNil
-
-
-
-
-
-        implicit val repT : ReprFact[timeFT] = ReprFact.SingleRepr[timeS ,timeFT]
-
-        val a1 :timeFT = repT.getRepr(aa)
-
-
-        implicit val repT2 : ReprFact[valueFT] = ReprFact.SingleRepr[valueS ,valueFT]
-
-        val a2 :valueFT = repT2.getRepr(aa)
-
-
-        implicit val  fdf = ReprFact.PairRepr[valueFT,HNil]
-        implicit val sds = ReprFact.PairRepr[timeFT,valueFT::HNil]
-        ReprFact.get[TimeValue](aa)
-          */
-        ???
+        to[TimeValue].from(aa).get
       }
       ,
       _ => ZIO.fail(new Exception())
@@ -207,85 +139,3 @@ object gcloud {
   })
 
 }
-
-
-/**
-  *
-  *
-  *
-  * import shapeless._, labelled.{ FieldType, field }
-  *
-  * trait FromMap[L <: HList] {
-  * def apply(m: Map[String, Any]): Option[L]
-  * }
-  * And then the instances:
-  *
-  * trait LowPriorityFromMap {
-  * implicit def hconsFromMap1[K <: Symbol, V, T <: HList](implicit
-  * witness: Witness.Aux[K],
-  * typeable: Typeable[V],
-  * fromMapT: Lazy[FromMap[T]]
-  * ): FromMap[FieldType[K, V] :: T] = new FromMap[FieldType[K, V] :: T] {
-  * def apply(m: Map[String, Any]): Option[FieldType[K, V] :: T] = for {
-  * v <- m.get(witness.value.name)
-  * h <- typeable.cast(v)
-  * t <- fromMapT.value(m)
-  * } yield field[K](h) :: t
-  * }
-  * }
-  *
-  * object FromMap extends LowPriorityFromMap {
-  * implicit val hnilFromMap: FromMap[HNil] = new FromMap[HNil] {
-  * def apply(m: Map[String, Any]): Option[HNil] = Some(HNil)
-  * }
-  *
-  * implicit def hconsFromMap0[K <: Symbol, V, R <: HList, T <: HList](implicit
-  * witness: Witness.Aux[K],
-  * gen: LabelledGeneric.Aux[V, R],
-  * fromMapH: FromMap[R],
-  * fromMapT: FromMap[T]
-  * ): FromMap[FieldType[K, V] :: T] = new FromMap[FieldType[K, V] :: T] {
-  * def apply(m: Map[String, Any]): Option[FieldType[K, V] :: T] = for {
-  * v <- m.get(witness.value.name)
-  * r <- Typeable[Map[String, Any]].cast(v)
-  * h <- fromMapH(r)
-  * t <- fromMapT(m)
-  * } yield field[K](gen.from(h)) :: t
-  * }
-  * }
-  * And then a helper class for convenience:
-  *
-  * class ConvertHelper[A] {
-  * def from[R <: HList](m: Map[String, Any])(implicit
-  * gen: LabelledGeneric.Aux[A, R],
-  * fromMap: FromMap[R]
-  * ): Option[A] = fromMap(m).map(gen.from(_))
-  * }
-  *
-  * def to[A]: ConvertHelper[A] = new ConvertHelper[A]
-  * And the example:
-  *
-  * case class Address(street: String, zip: Int)
-  * case class Person(name: String, address: Address)
-  *
-  * val mp = Map(
-  * "name" -> "Tom",
-  * "address" -> Map("street" -> "Jefferson st", "zip" -> 10000)
-  * )
-  * And finally:
-  *
-  * scala> to[Person].from(mp)
-  * res0: Option[Person] = Some(Person(Tom,Address(Jefferson st,10000)))
-  *
-  *
-  *
-  */
-
-
-
-
-
-
-
-
-
