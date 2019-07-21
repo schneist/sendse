@@ -12,8 +12,7 @@ class IdentifierName[I,N](n:N){
   def name: N = n
 }
 
-
-abstract class Identifier[Identified,With](val value:With){
+ class Identifier[Identified,With](val value:With){
 
   def name[N](implicit identifierName: IdentifierName[With,N]) : N = identifierName.name //Refined MinSize[Witness.`3`.T]  And MaxSize[Witness.`15`.T]
 
@@ -47,7 +46,7 @@ abstract class  TimeSeriesStore[V <:Product : StoreableDocument,ID ,Error <: Thr
 
   def getById(identifier:Identifier[V,ID]):T[Environment,Error,V]
 
-  def store(value:V):T[Environment,Error,Unit]
+ // def store(value:V):T[Environment,Error,Unit]
 
 
 }

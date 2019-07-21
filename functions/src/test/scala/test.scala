@@ -1,4 +1,4 @@
-
+/*
 import org.novogarchinsk.functions.paths.jsimport.PathsStock._
 import colors.Color
 import org.novogarchinsk.functions.paths.jsimport.PathsStock
@@ -10,6 +10,8 @@ import slinky.web.svg._
 import scala.language.{higherKinds, implicitConversions, postfixOps}
 import scala.scalajs.js
 import js.JSConverters._
+
+
 
 class RenderTest extends WordSpec  {
 
@@ -432,3 +434,4 @@ object colors {
     if (c.alpha == 1) s"rgb(${ c.r.floor },${ c.g.floor },${ c.b.floor })"
     else s"rgba(${ c.r.floor },${ c.g.floor },${ c.b.floor },${ c.alpha })"
 }
+*/

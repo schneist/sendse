@@ -105,9 +105,11 @@ lazy val functions  = (project in file("./functions")).settings(
   pipelineStages in Assets := Seq(scalaJSPipeline),
 
   libraryDependencies ++= Seq(
-    "org.scalactic" %%% "scalactic" % scalaTestVersion,
+    "org.scalactic"    %%% "scalactic" % scalaTestVersion,
     "org.scalatest" %%% "scalatest" % scalaTestVersion % "test",
     "eu.timepit" %%% "refined" % "0.9.8",
+    "eu.timepit" %%% "refined-shapeless"       % "0.9.8",
+    "eu.timepit" %%% "refined-cats"       % "0.9.8",
     "me.shadaj" %%% "slinky-core" % "0.6.2",
     "me.shadaj" %%% "slinky-web" % "0.6.2",
     "org.scalaz" %%% "scalaz-zio" % "1.0-RC5",

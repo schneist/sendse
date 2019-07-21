@@ -3,6 +3,7 @@ package org.novogarchinsk.functions.google.cloud.firestore
 import eu.timepit.refined.api.Refined
 import eu.timepit.refined.boolean.And
 import eu.timepit.refined.collection.{MaxSize, MinSize}
+import eu.timepit.refined.types.string.NonEmptyString
 import org.novogarchinsk.functions.google.cloud.firestore.FirebaseFirestore.{DocumentData, DocumentSnapshot}
 import org.novogarchinsk.functions.{TimeSeriesStore, _}
 import scalaz.zio.{IO, ZIO}
@@ -10,23 +11,24 @@ import shapeless._
 import shapeless.labelled._
 import shapeless.tag._
 import shapeless.syntax.singleton._
+import shapeless._
+import labelled.{FieldType, field}
 
 import scala.language.{existentials, higherKinds, implicitConversions}
 import scala.reflect.ClassTag
 import scala.scalajs.js
+import scala.util.Try
 
 object gcloud {
 
-  //ToDo:: how to limit the id
-  type StringID = String Refined MinSize[Witness.`5`.T] And MaxSize[Witness.`15`.T]
+  type StringID = NonEmptyString
 
   class GCFireStore[StoredDocumentT <: Product :StoreableDocument](
                                                                     conv: (DocumentSnapshot => IO[Throwable,StoredDocumentT])
                                                                   ) extends TimeSeriesStore[StoredDocumentT,StringID, Throwable, FirebaseAdmin.FireStoreDB, ZIO] {
 
-    type Env = FirebaseAdmin.FireStoreDB
+    type Env =   FirebaseAdmin.FireStoreDB
 
-    implicit val identifierName: IdentifierName[StoredDocumentT,StringID] = new IdentifierName[StoredDocumentT,StringID](???)
 
     override def getById(identifier: Identifier[StoredDocumentT,StringID]): ZIO[Env, Throwable, StoredDocumentT] = for {
       db <- ZIO.environment[Env]
@@ -35,7 +37,7 @@ object gcloud {
       b <-  conv(a)
     } yield b
 
-    override def store(value: StoredDocumentT) = ???
+   // override def store(value: StoredDocumentT) = ???
   }
 
   implicit val storedDocument : StoreableDocument[TimeValue] = new StoreableDocument[TimeValue] {
@@ -53,70 +55,117 @@ object gcloud {
 
   trait FieldTypeExtractor[V]{
 
-
-    def from[K <: Symbol ](doc:DocumentData)(implicit ev: Witness.Aux[K]) : FieldType[K, V]
+    def from[K <: Symbol ](doc:DocumentData)(implicit ev: Witness.Aux[K]) : Option[FieldType[K, V]]
 
   }
 
   object FieldTypeExtractor{
 
-    class SimpleFieldTypeExtractor[V] extends FieldTypeExtractor[V]{
+    class SimpleFieldTypeExtractor[Value] extends FieldTypeExtractor[Value]{
 
-      def singletonValueName[K <: Symbol](implicit ev: Witness.Aux[K]): String = ev.value.name
+      override def from[Key<:Symbol](doc: DocumentData)
+                                    (implicit ev: Witness.Aux[Key]):Option[FieldType[Key,Value]] = {
 
-      override def from[K<:Symbol](doc: DocumentData)(implicit ev: Witness.Aux[K]):FieldType[K,V] = {
-        val name =  singletonValueName[K]
-        val v :V = doc.get(name).asInstanceOf[V]
-        new FieldBuilder[K].apply(v)
+        Try{
+          val fb = new FieldBuilder[Key]
+          val v :js.Any  = doc.get(ev.value.name).get
+          println("----------------------------------" +v)
+          fb.apply(v.asInstanceOf[Value])
+        }.toOption
       }
 
     }
 
-    // "Summoner" method
-    implicit def apply[T](implicit pack: FieldTypeExtractor[T]): FieldTypeExtractor[T] = pack
-
-    // "Constructor" method
     implicit def instance[T]: FieldTypeExtractor[T] = new SimpleFieldTypeExtractor[T]
 
+  }
+
+
+  trait ReprFact[R <: HList]{
+
+    def apply(documentSnapshot: DocumentData) : Option[R]
 
   }
 
-  abstract class ReprFact[R ]{
-    def getRepr(documentSnapshot: DocumentData) :R
+  trait LowPriorityReprFact {
+
+    implicit def hconsFromReprFact1[K <: Symbol, V, T <: HList](implicit
+                                                                witness: Witness.Aux[K],
+                                                                extractor: FieldTypeExtractor[V],
+                                                                factRem: Lazy[ReprFact[T]]
+                                                               ): ReprFact[FieldType[K, V] :: T] = (documentSnapshot: DocumentData) => for {
+      v <- extractor.from(documentSnapshot)
+      t <- factRem.value(documentSnapshot)
+    } yield v :: t
+
   }
 
-  object ReprFact {
+  object ReprFact extends LowPriorityReprFact{
 
-    implicit def NilRepr: ReprFact[HNil] = _ => HNil
+    implicit def NilRepr: ReprFact[HNil] = _ => Some(HNil)
 
 
-    implicit def SingleRepr[K<: Symbol,V](
-                                           implicit extractor: FieldTypeExtractor[V],
-                                           ev: Witness.Aux[K]
-                                         ) = new ReprFact[V] {
-      override def getRepr(documentSnapshot: DocumentData) =
-        extractor.from(documentSnapshot)(ev)
+    implicit def hconsFromReprFact0[K <: Symbol, V, R <: HList, T <: HList](implicit
+                                                                            witness: Witness.Aux[K],
+                                                                            extractor: FieldTypeExtractor[V],
+                                                                            gen: LabelledGeneric.Aux[V, R],
+                                                                            fromMapH: ReprFact[R],
+                                                                            fromMapT: ReprFact[T]
+                                                                           ): ReprFact[FieldType[K, V] :: T] = new ReprFact[FieldType[K, V] :: T] {
+      def apply(documentSnapshot: DocumentData): Option[FieldType[K, V] :: T] = for {
+        v <- extractor.from(documentSnapshot)
+        t <- fromMapT(documentSnapshot)
+      } yield v :: t
+
+    }
+  }
+
+
+  class ConvertHelper[A] {
+    def from[R <: HList](m: DocumentData)(implicit
+                                              gen: LabelledGeneric.Aux[A, R],
+                                              fromMap: ReprFact[R]
+    ): Option[A] = fromMap(m).map(gen.from(_))
+  }
+
+  def to[A]: ConvertHelper[A] = new ConvertHelper[A]
+
+  /*
+    object ReprFact {
+
+      implicit def symbolWitness[TT](implicit tv : Witness.Aux[TT]) = new Witness {
+
+        override type T = @@[Symbol,TT]
+
+        override val value =  tag.apply[scala.Symbol].apply(tv.value).asInstanceOf[@@[Symbol,TT]]
+      }
+
+
+
+
+      implicit def SingleRepr[K, T<: @@[Symbol,K],V](
+                                                      implicit extractor: FieldTypeExtractor[V]
+                                                    ) = new ReprFact[V] {
+        override def getRepr(documentSnapshot: DocumentData) =
+          extractor.from(documentSnapshot)(symbolWitness[])
+      }
+
+      implicit def PairRepr[Head , Tail <: HList ](
+                                                    implicit reprFactH: ReprFact[Head],
+                                                    reprFactT: ReprFact[Tail],
+                                                  ): ReprFact[Head::Tail] = ???
+
+      def get[R](documenData: DocumentData)(implicit rf: ReprFact[R]) :R = rf.getRepr(documenData)
     }
 
-    implicit def PairRepr[Head , Tail <: HList ](
-                                                  implicit reprFactH: ReprFact[Head],
-                                                  reprFactT: ReprFact[Tail],
-                                                ): ReprFact[Head::Tail] = ???
-
-  }
-
-
+  */
 
   object GCTimeSeriesStore extends GCFireStore[TimeValue](conv =  (a:DocumentSnapshot) => {
     a.data().fold(
       aa => ZIO.apply {
 
 
-        //val fieldN: List[String] = storedDocument.fieldNames()
-
-
-        //ToDo:: add Extractor for HNil
-        //ToDo:: add Extractor for  Decoder[FieldType[K, V] :+: R]
+        /*
 
         type time = Witness.`"time"`.T
         type value = Witness.`"value"`.T
@@ -130,46 +179,25 @@ object gcloud {
 
         type ds = timeFT :: valueFT :: HNil
 
-        implicit val ftet  :FieldTypeExtractor[timeFT] = FieldTypeExtractor.instance[timeFT]
-        implicit val ftev  :FieldTypeExtractor[valueFT] = FieldTypeExtractor.instance[valueFT]
 
 
-        implicit def v[TT](implicit tv : Witness.Aux[TT]) = new Witness {
 
-          override type T = @@[Symbol,TT]
-
-          override val value =  tag.apply[scala.Symbol].apply(tv.value).asInstanceOf[@@[Symbol,TT]]
-        }
 
         implicit val repT : ReprFact[timeFT] = ReprFact.SingleRepr[timeS ,timeFT]
 
-        val a :timeFT = repT.getRepr(aa)
-        /*
-
-        //implicitly[Extractor[Long with labelled.KeyTag[Symbol with shapeless.tag.Tagged[Witness.`"time"`.T], Long]]]
-
-        implicit val llll = ReprFact.SingleRepr[timeS,kt]
-
-        //implicitly[ReprFact[Long with labelled.KeyTag[Symbol with shapeless.tag.Tagged[Witness.`"time"`.T], Long]]]
+        val a1 :timeFT = repT.getRepr(aa)
 
 
-        implicit val vv = new ReprFact[Double with labelled.KeyTag[Symbol with shapeless.tag.Tagged[Witness.`"value"`.T], Double]] {
-          override def getRepr(documentSnapshot: DocumentData)(implicit ev: Aux[_]) = ???
-        }
+        implicit val repT2 : ReprFact[valueFT] = ReprFact.SingleRepr[valueS ,valueFT]
 
-                val r = implicitly[ReprFact[ds]]
-                // implicitly[ReprFact[Double with labelled.KeyTag[Symbol with shapeless.tag.Tagged[Witness.`"value"`.T], Double]]]
-                // val tt :ds = tbd.get[ds]
-                //val tt = fieldN
-                //  .map(fn =>(Symbol(fn), aa.get(fn)))
-                // .foldRight[HList](HNil())((a1,a2) => a1._1 ->> a1._2 :: a2)
+        val a2 :valueFT = repT2.getRepr(aa)
 
 
-                // new TimeValue(aa.get())
+        implicit val  fdf = ReprFact.PairRepr[valueFT,HNil]
+        implicit val sds = ReprFact.PairRepr[timeFT,valueFT::HNil]
+        ReprFact.get[TimeValue](aa)
           */
-        val gen = LabelledGeneric[TimeValue]
-        val tt :ds =  ??? //r.getRepr(aa)
-        gen.from(tt)
+        ???
       }
       ,
       _ => ZIO.fail(new Exception())
@@ -181,11 +209,77 @@ object gcloud {
 }
 
 
-
-
-
-
-
+/**
+  *
+  *
+  *
+  * import shapeless._, labelled.{ FieldType, field }
+  *
+  * trait FromMap[L <: HList] {
+  * def apply(m: Map[String, Any]): Option[L]
+  * }
+  * And then the instances:
+  *
+  * trait LowPriorityFromMap {
+  * implicit def hconsFromMap1[K <: Symbol, V, T <: HList](implicit
+  * witness: Witness.Aux[K],
+  * typeable: Typeable[V],
+  * fromMapT: Lazy[FromMap[T]]
+  * ): FromMap[FieldType[K, V] :: T] = new FromMap[FieldType[K, V] :: T] {
+  * def apply(m: Map[String, Any]): Option[FieldType[K, V] :: T] = for {
+  * v <- m.get(witness.value.name)
+  * h <- typeable.cast(v)
+  * t <- fromMapT.value(m)
+  * } yield field[K](h) :: t
+  * }
+  * }
+  *
+  * object FromMap extends LowPriorityFromMap {
+  * implicit val hnilFromMap: FromMap[HNil] = new FromMap[HNil] {
+  * def apply(m: Map[String, Any]): Option[HNil] = Some(HNil)
+  * }
+  *
+  * implicit def hconsFromMap0[K <: Symbol, V, R <: HList, T <: HList](implicit
+  * witness: Witness.Aux[K],
+  * gen: LabelledGeneric.Aux[V, R],
+  * fromMapH: FromMap[R],
+  * fromMapT: FromMap[T]
+  * ): FromMap[FieldType[K, V] :: T] = new FromMap[FieldType[K, V] :: T] {
+  * def apply(m: Map[String, Any]): Option[FieldType[K, V] :: T] = for {
+  * v <- m.get(witness.value.name)
+  * r <- Typeable[Map[String, Any]].cast(v)
+  * h <- fromMapH(r)
+  * t <- fromMapT(m)
+  * } yield field[K](gen.from(h)) :: t
+  * }
+  * }
+  * And then a helper class for convenience:
+  *
+  * class ConvertHelper[A] {
+  * def from[R <: HList](m: Map[String, Any])(implicit
+  * gen: LabelledGeneric.Aux[A, R],
+  * fromMap: FromMap[R]
+  * ): Option[A] = fromMap(m).map(gen.from(_))
+  * }
+  *
+  * def to[A]: ConvertHelper[A] = new ConvertHelper[A]
+  * And the example:
+  *
+  * case class Address(street: String, zip: Int)
+  * case class Person(name: String, address: Address)
+  *
+  * val mp = Map(
+  * "name" -> "Tom",
+  * "address" -> Map("street" -> "Jefferson st", "zip" -> 10000)
+  * )
+  * And finally:
+  *
+  * scala> to[Person].from(mp)
+  * res0: Option[Person] = Some(Person(Tom,Address(Jefferson st,10000)))
+  *
+  *
+  *
+  */
 
 
 
