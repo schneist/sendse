@@ -1,22 +1,17 @@
 package org.novogarchinsk.functions.google.cloud.firestore
 
-import eu.timepit.refined.api.Refined
-import eu.timepit.refined.boolean.And
-import eu.timepit.refined.collection.{MaxSize, MinSize}
 import eu.timepit.refined.types.string.NonEmptyString
 import org.novogarchinsk.functions.google.cloud.firestore.FirebaseFirestore.{DocumentData, DocumentSnapshot}
 import org.novogarchinsk.functions.{TimeSeriesStore, _}
 import scalaz.zio.{IO, ZIO}
+import shapeless.Witness.Aux
 import shapeless._
-import shapeless.labelled._
-import shapeless.tag._
-import shapeless.syntax.singleton._
-import shapeless._
-import labelled.{FieldType, field}
+import shapeless.labelled.{FieldType, _}
 
 import scala.language.{existentials, higherKinds, implicitConversions}
 import scala.reflect.ClassTag
 import scala.scalajs.js
+import scala.scalajs.js.Dictionary
 import scala.util.Try
 
 object gcloud {
@@ -55,22 +50,57 @@ object gcloud {
 
   trait FieldTypeExtractor[V]{
 
-    def from[K <: Symbol ](doc:DocumentData)(implicit ev: Witness.Aux[K]) : Option[FieldType[K, V]]
+    def from[K <: Symbol ](doc:DocumentData)(implicit ev: Witness.Aux[K],
+                                             typeable: Typeable[V]) : Option[FieldType[K, V]]
 
   }
 
   object FieldTypeExtractor{
 
-    class SimpleFieldTypeExtractor[Value] extends FieldTypeExtractor[Value]{
+    class SimpleFieldTypeExtractor[Value] extends FieldTypeExtractor[Value] {
 
-      override def from[Key<:Symbol](doc: DocumentData)
-                                    (implicit ev: Witness.Aux[Key]):Option[FieldType[Key,Value]] = Try{
-        new FieldBuilder[Key].apply( doc.get(ev.value.name).get.asInstanceOf[Value])
-      }.toOption
+
+
+      override def from[Key <: Symbol](doc: DocumentData)
+                                      (implicit ev: Witness.Aux[Key],
+                                       typeable: Typeable[Value]
+                                      ): Option[FieldType[Key, Value]] = {
+         doc.get(ev.value.name)
+        .flatMap(v => typeable.cast(v))
+          .map(v => new FieldBuilder[Key].apply(v))
+      }
 
     }
 
-    implicit def instance[T]: FieldTypeExtractor[T] = new SimpleFieldTypeExtractor[T]
+
+    class ProductFieldTypeExtractor[Value <:Product,R <:HList](
+                                                                implicit gen: shapeless.LabelledGeneric.Aux[Value,R],
+                                                                reprFact: ReprFact[R]) extends FieldTypeExtractor[Value]{
+
+      override def from[K <: Symbol](doc: DocumentData)
+                                    (implicit ev: Aux[K],
+                                     typeable: Typeable[Value]) = {
+        Try{
+          val r = doc.get(ev.value.name).map(_.asInstanceOf[DocumentData]).get
+          val t = to[Value]
+
+          t.from[R](r)(gen,reprFact).get
+        }.toOption
+          .map(v => new FieldBuilder[K].apply(v))
+      }
+    }
+
+    implicit def instance[T <: AnyVal ]: FieldTypeExtractor[T] = new SimpleFieldTypeExtractor[T]
+
+    implicit def instanceProd[T <: Product,R  <: HList](
+                                                implicit gen: shapeless.LabelledGeneric.Aux[T,R],
+                                                reprFact: ReprFact[R]): FieldTypeExtractor[T] = new ProductFieldTypeExtractor[T,R]
+
+    implicit def instanceString: FieldTypeExtractor[String] = new SimpleFieldTypeExtractor[String]
+
+    // implicit def instanceALL[T]: FieldTypeExtractor[T] = new SimpleFieldTypeExtractor[T]
+
+
 
   }
 
@@ -84,9 +114,10 @@ object gcloud {
   trait LowPriorityReprFact {
 
     implicit def hconsFromReprFact1[K <: Symbol, V, T <: HList](implicit
-                                                                witness: Witness.Aux[K],
+                                                                witnessK: Witness.Aux[K],
                                                                 extractor: FieldTypeExtractor[V],
-                                                                factRem: Lazy[ReprFact[T]]
+                                                                factRem: Lazy[ReprFact[T]],
+                                                                typeable: Typeable[V]
                                                                ): ReprFact[FieldType[K, V] :: T] = (documentSnapshot: DocumentData) => for {
       v <- extractor.from(documentSnapshot)
       t <- factRem.value(documentSnapshot)
@@ -98,44 +129,38 @@ object gcloud {
 
     implicit def NilRepr: ReprFact[HNil] = _ => Some(HNil)
 
-
     implicit def hconsFromReprFact0[K <: Symbol, V, R <: HList, T <: HList](implicit
-                                                                            witness: Witness.Aux[K],
+                                                                            witnessK: Witness.Aux[K],
                                                                             extractor: FieldTypeExtractor[V],
                                                                             gen: LabelledGeneric.Aux[V, R],
                                                                             fromMapH: ReprFact[R],
-                                                                            fromMapT: ReprFact[T]
-                                                                           ): ReprFact[FieldType[K, V] :: T] = new ReprFact[FieldType[K, V] :: T] {
-      def apply(documentSnapshot: DocumentData): Option[FieldType[K, V] :: T] = for {
-        v <- extractor.from(documentSnapshot)
-        t <- fromMapT(documentSnapshot)
-      } yield v :: t
+                                                                            fromMapT: ReprFact[T],
+                                                                            typeable: Typeable[V]
+                                                                           ): ReprFact[FieldType[K, V] :: T] = (documentSnapshot: DocumentData) => for {
+      v <- extractor.from(documentSnapshot)
+      t <- fromMapT(documentSnapshot)
+    } yield v :: t
 
-    }
   }
-
 
   class ConvertHelper[A] {
     def from[R <: HList](m: DocumentData)(implicit
                                           gen: LabelledGeneric.Aux[A, R],
-                                          fromMap: ReprFact[R]
-    ): Option[A] = fromMap(m).map(gen.from(_))
+                                          reprFact: ReprFact[R]
+    ): Option[A] = reprFact(m).map(gen.from(_))
   }
 
   def to[A]: ConvertHelper[A] = new ConvertHelper[A]
 
-
-
   object GCTimeSeriesStore extends GCFireStore[TimeValue](conv =  (a:DocumentSnapshot) => {
     a.data().fold(
-      aa => ZIO.apply {
-        to[TimeValue].from(aa).get
+      aa => ZIO.apply{
+        val t :ConvertHelper[TimeValue] = to[TimeValue]
+        t.from(aa).get
       }
       ,
-      _ => ZIO.fail(new Exception())
+      _ => ZIO.fail(new Exception("No data in Snapshot"))
     )
-
-
   })
 
 }
