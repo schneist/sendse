@@ -16,7 +16,7 @@ object TimeSeriesStoreFunctions {
 
   FirebaseAdmin.initializeApp(FirebaseFunctions.config().firebase)
 
-  val db: FirebaseAdmin.FireStoreDB = FirebaseAdmin.firestore()
+  val db  = FirebaseAdmin.firestore()
 
   @JSExportTopLevel("submitValue")
   def submitValue(req: Request, res: Response) = {

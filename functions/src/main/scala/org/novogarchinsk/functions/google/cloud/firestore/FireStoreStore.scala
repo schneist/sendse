@@ -3,7 +3,7 @@ package org.novogarchinsk.functions.google.cloud.firestore
 import eu.timepit.refined.types.string.NonEmptyString
 import org.novogarchinsk.functions.google.cloud.firestore.FirebaseFirestore.{DocumentData, DocumentSnapshot}
 import org.novogarchinsk.functions.{TimeSeriesStore, _}
-import scalaz.zio.{IO, ZIO}
+import zio.{IO, ZIO}
 import shapeless.Witness.Aux
 import shapeless._
 import shapeless.labelled.{FieldType, _}
@@ -11,7 +11,6 @@ import shapeless.labelled.{FieldType, _}
 import scala.language.{existentials, higherKinds, implicitConversions}
 import scala.reflect.ClassTag
 import scala.scalajs.js
-import scala.scalajs.js.Dictionary
 import scala.util.Try
 
 object gcloud {
@@ -20,9 +19,9 @@ object gcloud {
 
   class GCFireStore[StoredDocumentT <: Product :StoreableDocument](
                                                                     conv: (DocumentSnapshot => IO[Throwable,StoredDocumentT])
-                                                                  ) extends TimeSeriesStore[StoredDocumentT,StringID, Throwable, FirebaseAdmin.FireStoreDB, ZIO] {
+                                                                  ) extends TimeSeriesStore[StoredDocumentT,StringID, Throwable,  FirebaseFirestore.Firestore, ZIO] {
 
-    type Env =   FirebaseAdmin.FireStoreDB
+    type Env =  FirebaseFirestore.Firestore
 
 
     override def getById(identifier: Identifier[StoredDocumentT,StringID]): ZIO[Env, Throwable, StoredDocumentT] = for {

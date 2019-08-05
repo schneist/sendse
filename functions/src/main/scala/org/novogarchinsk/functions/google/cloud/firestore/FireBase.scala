@@ -1,7 +1,7 @@
 package org.novogarchinsk.functions.google.cloud.firestore
 
 import org.novogarchinsk.functions.google.cloud.firestore.FirebaseFunctions.FunctionsConfigFirebase
-import FirebaseFirestore.{CollectionReference, DocumentReference}
+import FirebaseFirestore.{CollectionReference, DocumentReference, Firestore}
 
 import scala.scalajs.js
 import scala.scalajs.js.annotation.JSImport
@@ -29,22 +29,7 @@ object FirebaseAdmin extends js.Object {
 
   def initializeApp(functionsConfigFirebase: FunctionsConfigFirebase ) : Unit = js.native
 
-  def firestore(): FireStoreDB = js.native
+  def firestore(): Firestore = js.native
 
-
-  @js.native
-  class FireStoreDB extends js.Object {
-    def collection(name:String) : CollectionReference = js.native
-    def doc(name:String): DocumentReference = js.native
-  }
-
-
-
-
-
-  @js.native
-  class FSSetwOpt extends js.Object {
-
-  }
 
 }

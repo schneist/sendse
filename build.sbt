@@ -112,7 +112,7 @@ lazy val functions  = (project in file("./functions")).settings(
     "eu.timepit" %%% "refined-cats"       % "0.9.8",
     "me.shadaj" %%% "slinky-core" % "0.6.2",
     "me.shadaj" %%% "slinky-web" % "0.6.2",
-    "org.scalaz" %%% "scalaz-zio" % "1.0-RC5",
+    "dev.zio" %%% "zio" % "1.0.0-RC9",
     "com.github.mpilquist" %% "simulacrum" % "0.19.0"
   ),
 
@@ -150,3 +150,4 @@ lazy val functions  = (project in file("./functions")).settings(
 
 
 
+lazy val grid  = (project in file("./grid "))
